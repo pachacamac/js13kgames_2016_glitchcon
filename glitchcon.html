@@ -1,0 +1,177 @@
+<style>*{margin:0;padding:0;box-sizing:border-box;}canvas{width:100%;height:100%}</style>
+<canvas id='C' style='background:#000;'>
+<script>
+var c=C.getContext("2d"),R=Math.random,tick=Date.now(),selectedPlanets=new Set(),i,j,ships=[],planets=[],sfx=[];
+C.width = window.innerWidth; C.height = window.innerHeight;
+c.font = '18px Helvetica'; c.textAlign = 'center'; c.textBaseline = 'middle';
+
+function reassignShips(){ for(var i=0; i<ships.length; i++) ships[i].to = planets[Math.floor(Math.random()*planets.length)]; }
+function flipPlanets(){ for(var i=0; i<planets.length; i++) planets[i].p = planets[i].p == 1 ? 2 : planets[i].p == 2 ? 1 : planets[i].p; }
+function flipBackground() { var a=['#000','#0FF','#FF0','#FFF','#777', '#F0F']; C.style.background = a[Math.floor(Math.random()*a.length)];}
+function flippyDiDoo(){ flipBackground(); reassignShips(); flipPlanets(); if(Math.random()<0.8) setTimeout(flippyDiDoo, Math.random()*150+50); }
+setInterval(function(){
+  synth(s_glitch, Math.random()*5000+4000).play(); flippyDiDoo()
+}, 8000 + Math.random()*12000);
+
+function synth(f,d){
+  for(var t=0,s='RIFF_oO_WAVEfmt '+atob('EAAAAAEAAQBAHwAAQB8AAAEACAA')+'data';++t<d;)s+=String.fromCharCode(f(t));
+  return new Audio('data:audio/wav;base64,'+btoa(s));
+}
+function s_gameOver(t){return (Math.sin(t/(t>>9))*10)&255}
+function s_glitch(t){return (Math.tan(t/(t>>3))*666)&255}
+
+function dist(x1,y1,x2,y2){return Math.sqrt(Math.pow(x1-x2,2)+Math.pow(y1-y2,2))}
+function inPlanet(x,y,p){return dist(p.x,p.y,x,y)<p.r}
+
+function generatePlanets(n){
+  var i, s = [30,60,90,120], m = s.slice(-1)[0];
+  function randPlanet(){
+    var x = R()*(C.width-m*2)+m, y = R()*(C.height-m*2)+m, p = x<C.width*0.5 && y<C.height*0.5 ? 1 : x>C.width*0.5 && y>C.height*0.5 ? 2 : 0;
+    return {x: x, y: y, r: s[Math.floor(R()*s.length)], e: 10, p: p}
+  }
+  function isGoodPlanet(q,p){for(i=0;i<p.length;i++){if(dist(q.x,q.y,p[i].x,p[i].y)<((q.r+p[i].r)*1.5)){return false}}return true}
+  function newPlanet(p,q){while(!isGoodPlanet(q=randPlanet(),p)){q=randPlanet()}return q}
+  var p=[];for(i=0;i<n;i++){p.push(newPlanet(p))};return p;
+}
+
+function sendShips(p,q){
+  for(var i=0,n=Math.floor(p.e*0.5);i<Math.min(n,p.e);i++){ /*create ships based on planets energy*/
+    ships.push({from: p, to: q, p: p.p, x: p.x+R()*p.r-p.r/2, y: p.y+R()*p.r-p.r/2, rdx: R()*0.8-0.4, rdy: R()*0.8-0.4}); /*create ship*/
+    p.e--; /*take energy from planet*/
+  }
+}
+
+function shipCollision(s){
+  if(s.from==s.to)return s.to;
+  for(var i=0;i<planets.length;i++)if(planets[i]!=s.from&&(planets[i].p!=s.p||planets[i]==s.to)&&inPlanet(s.x,s.y,planets[i]))return planets[i];
+  return null;
+}
+
+function gameLoop() {
+  var tickAction = false, pc;
+  if(Date.now()-tick>1000){ tick = Date.now(); tickAction = true; }
+  c.clearRect(0, 0, C.width, C.height);
+  /* handle planets */
+  for(var i=0;i<planets.length;i++){
+    c.beginPath();
+    c.arc(planets[i].x, planets[i].y, planets[i].r, 0, 2 * Math.PI, false);
+    c.fillStyle = planets[i].p == 0 ? '#999' : planets[i].p == 2 ? '#900' : '#090';
+    c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.fillText(planets[i].e, planets[i].x, planets[i].y);
+    if(tickAction && planets[i].p != 0){
+      if(planets[i].e < planets[i].r) planets[i].e=Math.floor(planets[i].e + planets[i].r/30); else planets[i].e--;
+    }
+  }
+  /* winning condition */
+  if(tickAction){
+    if(!planets.find(function(p){return p.p==2}) && !ships.find(function(s){return s.p==2})){
+      synth(s_glitch, 6000).play(); alert("Green wins"); newGame() }
+    else if(!planets.find(function(p){return p.p==1}) && !ships.find(function(s){return s.p==1})){
+      synth(s_glitch, 6000).play(); alert("Red wins"); newGame() }
+  }
+  /* handle ships */
+  for(var i=0;i<ships.length;i++){
+    var x1 = ships[i].x, y1 = ships[i].y, x2 = ships[i].to.x, y2 = ships[i].to.y, d = dist(x1,y1,x2,y2),
+        dx = (x2-x1)/d, dy = (y2-y1)/d, a = Math.atan2(y2-y1,x2-x1);
+    ships[i].x += dx*3+ships[i].rdx;
+    ships[i].y += dy*3+ships[i].rdy;
+    c.save();
+    c.translate(ships[i].x,ships[i].y);
+    c.rotate(a);
+    c.fillStyle = ships[i].p == 2 ? '#d00' : '#0d0';
+    c.beginPath();
+    c.moveTo(0,0);
+    c.lineTo(-16,-6);
+    c.lineTo(-16, 6);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    for(var j=0;j<4;j++){c.strokeStyle='rgba(255,'+Math.floor(99+R()*99)+',0,'+R()+')'; c.moveTo(-16, 0); c.lineTo(R()*-10-25, R()*8-4);c.stroke();}
+    c.restore();
+
+    if(pc=shipCollision(ships[i])){
+      if(pc.p==ships[i].p){
+        pc.e++;
+        sfx.push({x: pc.x, y: pc.y, r: pc.r, t: 1, f: 10});
+      }else if(pc.p!=ships[i].p){
+        pc.e--;
+        if(pc.e==0) pc.p=0; else if(pc.e<0) pc.p=ships[i].p;
+        sfx.push({x: ships[i].x, y: ships[i].y, t: 0, f: 10});
+      }
+      ships.splice(i, 1);
+    }
+  }
+  /* handle sfx */
+  for(var i=0;i<sfx.length;i++){
+    if(sfx[i].t==0){ //explosion
+      c.strokeStyle='rgba(255,'+Math.floor(99+R()*99)+',0,'+(R()*0.33+0.66)+')';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(sfx[i].x+R()*20-10,sfx[i].y+R()*20-10);
+      for(var j=0;j<3;j++)c.lineTo(sfx[i].x+R()*20-10,sfx[i].y+R()*20-10);
+      c.closePath();
+      c.stroke();
+    }else if(sfx[i].t==1){ //planet energy boost
+      c.strokeStyle='rgba(99,99,'+Math.floor(99+R()*99)+','+(R()*0.33+0.66)+')';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.arc(sfx[i].x, sfx[i].y, sfx[i].r+R()*5, 0, 2 * Math.PI, false);
+      c.closePath();
+      c.stroke();
+    }
+    if(--sfx[i].f<0)sfx.splice(i, 1);
+  }
+  if(tickAction){ aiMove(planets, 2) }
+  requestAnimationFrame(gameLoop);
+}
+
+function planetOnPosition(pos, teams){
+  for(var i=0;i<planets.length;i++)
+    if(inPlanet(pos[0], pos[1], planets[i]) && teams.indexOf(planets[i].p)!==-1 )
+      return planets[i];
+  return null;
+}
+
+function pos(e){
+  return [e.changedTouches ? e.changedTouches[0].pageX : e.pageX, e.changedTouches ? e.changedTouches[0].pageY : e.pageY];
+}
+
+function dragmove(e){
+  e.preventDefault();
+  var planet = planetOnPosition(pos(e), [1]);
+  if(planet) selectedPlanets.add(planet);
+}
+
+function drop(e){
+  var planet = planetOnPosition(pos(e), [0,1,2]);
+  if(planet) for(var p of selectedPlanets) sendShips(p, planet);
+  selectedPlanets.clear();
+}
+
+function aiMove(planets, team){
+  var neutralPlanets = [], myPlanets = [], enemyPlanets = [];
+  planets.forEach(function(p){
+    if(p.p == 0) neutralPlanets.push(p);
+    else if(p.p == team) myPlanets.push(p);
+    else if(p.p != team) enemyPlanets.push(p);
+  });
+  myPlanets.sort(function(a, b){ return b.e - a.e }); // strongest first
+  enemyPlanets.sort(function(a, b){ return a.e - b.e }); // weakest first
+  neutralPlanets.sort(function(a, b){ return a.e - b.e }); // weakest first
+  if(myPlanets.length > 0 && enemyPlanets.length > 0 && myPlanets[0].e > 10) sendShips(myPlanets[0], enemyPlanets[0]);
+  if(neutralPlanets.length > 0) for(var p of myPlanets) if(p.e > 20) sendShips(p, neutralPlanets[0]);
+}
+
+function newGame(){ planets = generatePlanets(12); ships = []; }
+
+C.addEventListener('touchstart', dragmove, false);
+C.addEventListener('mousedown', dragmove, false);
+C.addEventListener('touchmove', dragmove, false);
+C.addEventListener('mousemove', dragmove, false);
+C.addEventListener('touchend', drop, false);
+C.addEventListener('mouseup', drop, false);
+
+newGame();
+gameLoop();
+</script>
